@@ -4,28 +4,27 @@ import re
 
 
 def parse_cmd(cmd_str):
+    # valid_regex = re.compile('^[\+\-][.+a-zA-Z0-9-]+(<|>)?=?(\d+(.\d+)*)$')
+    # if not valid_regex.match(cmd_str):
+    #     return
 
-    valid_regex = re.compile('[\+\-][.+a-zA-Z0-9-]+=(\d+(.\d)*)')
-    if not valid_regex.match(cmd_str):
-        return
+    ver_ops_regex = re.compile('([<>=]+)')
 
-    op_regex = re.compile('[\+\-]')
-    name_regex = re.compile('(?<=[\+\-])[.+a-zA-Z0-9-]+')
-    ver_regex = re.compile('(?<==)(\d+(.\d)*)')
+    op = cmd_str[0]
+    splits = re.split(ver_ops_regex, cmd_str[1:])
+    name = splits[0]
+    ver = splits[2].split('.')
+    ver_ops = splits[1]
 
-    op = op_regex.search(cmd_str).group()
-    name = name_regex.search(cmd_str).group()
-    ver = ver_regex.search(cmd_str).group().split('.')
-
-    return [op, name, ver]
+    return [op, name, ver, ver_ops]
 
 
 def install(args):
-    print('installing:', args[0], 'version', str.join('.', args[1]))
+    print('installing:', args[0], 'version', args[2], args[1])
 
 
 def uninstall(args):
-    print('uninstalling:', args[0], 'version: ', str.join('.', args[1]))
+    print('uninstalling:', args[0], 'version', args[2], args[1])
 
 
 if len(sys.argv) < 2:
