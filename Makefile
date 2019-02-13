@@ -1,19 +1,14 @@
-all: compile
-
-compile: deps
-	./compile.sh
+all: deps
 
 deps:
 	./install_deps.sh
-	touch deps
 
 test: compile
 	./run_tests.sh
 
 clean:
-	rm -rf classes
+	rm -rf build
 
 reallyclean: clean
-	rm -rf lib deps
 
 .PHONY: all compile test clean reallyclean
