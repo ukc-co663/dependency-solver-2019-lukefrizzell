@@ -80,15 +80,12 @@ def install_map(pkg, repo):
 
 
 def get_package_ref(pkg):
-    n, v, d, c = pkg
+    n, v = pkg
     return "+"+n+"="+v
 
 
 def process_package_options(package_opt, current):
     name, version, depends, conflicts = package_opt
-
-    print(current)
-
     if conflicts:
         for conflict in conflicts:
             p_conflict = parse_package(conflict)
@@ -143,6 +140,25 @@ def process_installation(packages, current):
     return output
 
 
+def init_to_current(init):
+    output = []
+    for i in init:
+        p_i = parse_package(i)
+        output.append((p_i[0], p_i[1]))
+    return output
+
+
+def state_to_commands(state):
+    output = []
+    for st in state:
+        if st:
+            if type(st) is tuple:
+                output.append(get_package_ref(st))
+            else:
+                output += state_to_commands(st)
+    return output
+
+
 def calculate_state(constr, repo):
     packages = []
     uninstall_packages = []
@@ -153,8 +169,8 @@ def calculate_state(constr, repo):
         else:
             uninstall_packages.append(parse_package(package))
 
-    print(packages)
-    print(process_installation(packages, []))
+    installation = process_installation(packages, init_to_current(pkg_initial))
+    print(state_to_commands(installation))
 
 
 if len(sys.argv) < 4:
