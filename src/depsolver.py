@@ -3,78 +3,127 @@ import sys
 import re
 
 
-def find_in_repo(c, p):
-    for entry in p:
-        if entry['name'] is c[0]:
-            return entry
-
-
 def parse_package(desc):
     ver_ops_regex = re.compile("([<>=]+)")
 
     splits = re.split(ver_ops_regex, desc)
     name = splits[0]
 
-    ver = []
+    ver = ''
     ver_ops = None
 
     if len(splits) > 1:
-        ver = splits[2].split()
+        ver = splits[2]
         ver_ops = splits[1]
 
     return [name, ver, ver_ops]
 
 
 def parse_constraint(desc):
-    # valid_regex = re.compile('^[\+\-][.+a-zA-Z0-9-]+(<|>)?=?(\d+(.\d+)*)$')
-    # if not valid_regex.match(cmd_str):
-    #     return
-
     op = desc[0]
     return [op] + parse_package(desc[1:])
 
 
-def compare_version(a, op, b):
-    if op is None:
-        return True
-    if op is '<':
+def compare_sub_version(a, op, b):
+    if op == '<':
         return a < b
-    if op is '<=':
+    if op == '<=':
         return a <= b
-    if op is '=':
+    if op == '=':
         return a == b
-    if op is '>=':
+    if op == '>=':
         return a >= b
     else:
         return a > b
 
 
+def compare_version(a, op, b):
+    if op is None:
+        return True
+
+    va = list(map(lambda x: int(x), a.split('.')))
+    vb = list(map(lambda x: int(x), b.split('.')))
+
+    la = len(va)
+    lb = len(vb)
+
+    while la < lb:
+        va.append(0)
+
+    while lb < la:
+        vb.append(0)
+
+    for i in range(len(va)):
+        if not compare_sub_version(va[i], op, vb[i]):
+            return False
+    return True
+
+
 def install_map(pkg, repo):
     package = []
-    repo_matches = [x for x in repo if x["name"] == pkg[0]
-                    and compare_version(x["version"].split(), pkg[2], pkg[1])]
+    repo_matches = [x for x in repo if x["name"] == pkg[0] and compare_version(x["version"], pkg[2], pkg[1])]
     for match in repo_matches:
         deps = []
-        confs = []
+        conflicts = []
         if match.get("depends") is not None:
             for dep in match["depends"]:
+                x = []
                 for dep_opt in dep:
-                    deps.append(install_map(parse_package(dep_opt), repo))
+                    x += install_map(parse_package(dep_opt), repo)
+                deps.append(x)
+
         if match.get("conflicts") is not None:
             for conf in match["conflicts"]:
-                confs.append(conf)
-        package.append((match["name"], match["version"], deps, confs))
+                conflicts.append(conf)
+        package.append((match["name"], match["version"], deps, conflicts))
     return package
+
+
+def get_package_ref(pkg):
+    n, v, d, c = pkg
+    return "+"+n+"="+v
+
+
+def find_state(packages, curr):
+    for pkg_opt in packages:
+        name, v, d, c = pkg_opt
+        result = []
+
+        conflicts = conflict_check(pkg_opt, curr)
+        result += [pkg_opt]
+
+        if not d:
+            return result
+
+        r = []
+        for i in range(len(d)):
+            for dep in d[i]:
+                if dep in conflicts:
+                    continue
+            new_curr = curr
+            new_curr.append(get_package_ref(pkg_opt))
+            r += find_state(d[i], new_curr)
+        if len(r) == len(d):
+            return result + r
+    return []
 
 
 def calculate_state(constr, repo, init):
     packages = []
+    uninstall_packages = []
     for package in constr:
         parsed_package = parse_constraint(package)
-        if parsed_package[0] is '+':
+        if parsed_package[0] == '+':
             packages.append(install_map(parsed_package[1:], repo))
+        else:
+            uninstall_packages.append(parse_package(package))
 
     print(packages)
+    for pkg in packages:
+        for a in find_state(pkg, init):
+            if a:
+                n, v, d, c = a
+                print(n, v)
 
 
 if len(sys.argv) < 4:
@@ -100,3 +149,6 @@ for constraint in pkg_constraints:
         continue
 
 calculate_state(pkg_constraints, pkg_repository, pkg_initial)
+
+print(conflict_check(('A', '2.01', [[('B', '3.2', [], ['B<3.2']), ('C', '1', [], ['B'])], [('D', '10.3.1', [], ['B>=3.1'])]], []), []))
+
