@@ -170,7 +170,7 @@ def calculate_state(constr, repo):
             uninstall_packages.append(parse_package(package))
 
     installation = process_installation(packages, init_to_current(pkg_initial))
-    print(state_to_commands(installation))
+    return state_to_commands(installation)
 
 
 if len(sys.argv) < 4:
@@ -195,6 +195,8 @@ for constraint in pkg_constraints:
         print(cmd, 'is not a valid command')
         continue
 
-calculate_state(pkg_constraints, pkg_repository)
+commands = calculate_state(pkg_constraints, pkg_repository)
+f = open("commands.json", "w")
+f.write(json.dumps(commands))
 
 
