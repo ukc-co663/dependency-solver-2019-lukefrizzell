@@ -3,7 +3,7 @@ all: deps
 deps:
 	./install_deps.sh
 
-test: compile
+test: deps
 	./run_tests.sh
 
 clean:
