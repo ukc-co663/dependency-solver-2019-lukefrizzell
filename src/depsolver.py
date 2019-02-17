@@ -84,31 +84,66 @@ def get_package_ref(pkg):
     return "+"+n+"="+v
 
 
-def find_state(packages, curr):
-    for pkg_opt in packages:
-        name, v, d, c = pkg_opt
-        result = []
+def process_package_options(package_opt, current):
+    name, version, depends, conflicts = package_opt
 
-        conflicts = conflict_check(pkg_opt, curr)
-        result += [pkg_opt]
+    print(current)
 
-        if not d:
-            return result
+    if conflicts:
+        for conflict in conflicts:
+            p_conflict = parse_package(conflict)
+            for c in current:
+                n, v, d, conf = c
+                if p_conflict[0] == n:
+                    if compare_version(v, p_conflict[2], p_conflict[1]):
+                        return []
+    for c in current:
+        n, v, d, conf = c
+        for con in conf:
+            p_conf = parse_package(con)
+            if name == p_conf[0]:
+                if compare_version(version, p_conf[2], p_conf[1]):
+                    return []
 
-        r = []
-        for i in range(len(d)):
-            for dep in d[i]:
-                if dep in conflicts:
+    this_package = [(name, version)]
+    result = process_installation(depends, current)
+    if result:
+        this_package.append(result)
+    return this_package
+
+
+def process_package(package, current):
+    output = []
+    for option in package:
+        result = process_package_options(option, current)
+        if result:
+            output.append(result)
+    return output
+
+
+def process_installation(packages, current):
+    output = []
+    for package in packages:
+        if len(packages) > 1:
+            for package2 in packages:
+                if package == package2:
                     continue
-            new_curr = curr
-            new_curr.append(get_package_ref(pkg_opt))
-            r += find_state(d[i], new_curr)
-        if len(r) == len(d):
-            return result + r
-    return []
+                else:
+                    for opt in package2:
+                        n, v, d, c = opt
+                        r = process_package(package, current + [(n, v, d, c)])
+                        if r:
+                            output.append(r)
+        else:
+            result = process_package(package, current)
+            if not result:
+                return []
+            else:
+                output.append(result)
+    return output
 
 
-def calculate_state(constr, repo, init):
+def calculate_state(constr, repo):
     packages = []
     uninstall_packages = []
     for package in constr:
@@ -119,11 +154,7 @@ def calculate_state(constr, repo, init):
             uninstall_packages.append(parse_package(package))
 
     print(packages)
-    for pkg in packages:
-        for a in find_state(pkg, init):
-            if a:
-                n, v, d, c = a
-                print(n, v)
+    print(process_installation(packages, []))
 
 
 if len(sys.argv) < 4:
@@ -148,7 +179,6 @@ for constraint in pkg_constraints:
         print(cmd, 'is not a valid command')
         continue
 
-calculate_state(pkg_constraints, pkg_repository, pkg_initial)
+calculate_state(pkg_constraints, pkg_repository)
 
-print(conflict_check(('A', '2.01', [[('B', '3.2', [], ['B<3.2']), ('C', '1', [], ['B'])], [('D', '10.3.1', [], ['B>=3.1'])]], []), []))
 
