@@ -1,7 +1,8 @@
 import json
 import sys
 import re
-
+from satispy import Variable, Cnf
+from satispy.solver import Minisat
 
 def parse_package(desc):
     ver_ops_regex = re.compile("([<>=]+)")
@@ -79,65 +80,33 @@ def install_map(pkg, repo):
     return package
 
 
+def generate_clause(package):
+    n, v, d, c = package
+    v1 = Variable(n + '=' + v)
+    exp = v1
+    cjs = None
+    for conj in d:
+        djs = None
+        for disj in conj:
+	   if djs is None:
+               djs = generate_clause(disj)
+           else:
+               djs = djs | (generate_clause(disj))
+        if cjs is None:
+            cjs = djs
+        else:
+            cjs = cjs & (djs)
+
+    if cjs is None:
+	return exp
+
+    exp = exp & (cjs)
+    return exp
+
+
 def get_package_ref(pkg):
     n, v = pkg
     return "+"+n+"="+v
-
-
-def process_package_options(package_opt, current):
-    name, version, depends, conflicts = package_opt
-    if conflicts:
-        for conflict in conflicts:
-            p_conflict = parse_package(conflict)
-            for c in current:
-                n, v, d, conf = c
-                if p_conflict[0] == n:
-                    if compare_version(v, p_conflict[2], p_conflict[1]):
-                        return []
-    for c in current:
-        n, v, d, conf = c
-        for con in conf:
-            p_conf = parse_package(con)
-            if name == p_conf[0]:
-                if compare_version(version, p_conf[2], p_conf[1]):
-                    return []
-
-    this_package = [(name, version)]
-    result = process_installation(depends, current)
-    if result:
-        this_package.append(result)
-    return this_package
-
-
-def process_package(package, current):
-    output = []
-    for option in package:
-        result = process_package_options(option, current)
-        if result:
-            output.append(result)
-    return output
-
-
-def process_installation(packages, current):
-    output = []
-    for package in packages:
-        if len(packages) > 1:
-            for package2 in packages:
-                if package == package2:
-                    continue
-                else:
-                    for opt in package2:
-                        n, v, d, c = opt
-                        r = process_package(package, current + [(n, v, d, c)])
-                        if r:
-                            output.append(r)
-        else:
-            result = process_package(package, current)
-            if not result:
-                return []
-            else:
-                output.append(result)
-    return output
 
 
 def init_to_current(init):
@@ -169,8 +138,27 @@ def calculate_state(constr, repo):
         else:
             uninstall_packages.append(parse_package(package))
 
-    installation = process_installation(packages, init_to_current(pkg_initial))
-    return state_to_commands(installation)
+    solver = Minisat()
+    
+    exp = None
+    for pkg in packages:
+        opts = None
+        for pkg_opt in pkg:
+            if opts is None:
+                opts = generate_clause(pkg_opt)
+            else:
+                opts = opts | (generate_clause(pkg_opt))
+        if exp is None:
+            exp = opts
+        else:
+            exp = exp & (opts)
+
+    solution = solver.solve(exp)
+   
+    if not solution.success:
+       print("Could not find solution")    
+
+    print(solution)
 
 
 if len(sys.argv) < 4:
@@ -195,8 +183,8 @@ for constraint in pkg_constraints:
         print(cmd, 'is not a valid command')
         continue
 
-commands = calculate_state(pkg_constraints, pkg_repository)
-f = open("commands.json", "w")
-f.write(json.dumps(commands))
+calculate_state(pkg_constraints, pkg_repository)
+# f = open("commands.json", "w")
+# f.write(json.dumps(commands))
 
 
