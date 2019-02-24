@@ -60,9 +60,14 @@ def compare_version(a, op, b):
     return True
 
 
+def get_repo_matches(pkg, repo):
+    repo_matches = [x for x in repo if x["name"] == pkg[0] and compare_version(x["version"], pkg[2], pkg[1])]
+    return repo_matches
+
+
 def install_map(pkg, repo):
     package = []
-    repo_matches = [x for x in repo if x["name"] == pkg[0] and compare_version(x["version"], pkg[2], pkg[1])]
+    repo_matches = get_repo_matches(pkg, repo) 
     for match in repo_matches:
         deps = []
         conflicts = []
@@ -153,13 +158,19 @@ def calculate_state(constr, repo):
         else:
             exp = exp & (opts)
 
+    output = []
+
+    for u in uninstall_packages:
+        for match in get_repo_matches(u):
+            cmd = "-"+match["name"]+"="+match["version"]
+            exp = exp & cmd
+            output.append(cmd)
+
     solution = solver.solve(exp)
    
     if not solution.success:
        print("Could not find solution")    
        return []
-
-    output = []
 
     for var in solution.varmap:
         if solution[var]:
