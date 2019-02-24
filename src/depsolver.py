@@ -208,7 +208,7 @@ for constraint in pkg_constraints:
         continue
 
 commands = calculate_state(pkg_constraints, pkg_repository)
-f = open("commands.json", "w")
-f.write(json.dumps(commands))
-
+#f = open("commands.json", "w")
+#f.write(json.dumps(commands))
+print (json.dumps(commands))
 
