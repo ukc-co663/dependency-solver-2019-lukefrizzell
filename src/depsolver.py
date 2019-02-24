@@ -106,6 +106,11 @@ def generate_clause(package):
 	return exp
 
     exp = exp & (cjs)
+
+    for conf in c:
+        for m in get_repo_matches(parse_package(conf)):
+            exp = exp & Variable("-"+m["name"]+"="+match["version"])
+
     return exp
 
 
