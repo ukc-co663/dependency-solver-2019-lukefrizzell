@@ -157,8 +157,16 @@ def calculate_state(constr, repo):
    
     if not solution.success:
        print("Could not find solution")    
+       return []
 
-    print(solution)
+    output = []
+
+    for var in solution.varmap:
+        if solution[var]:
+            name = str(var)
+            output.append("+"+name)
+
+    return output
 
 
 if len(sys.argv) < 4:
@@ -183,8 +191,8 @@ for constraint in pkg_constraints:
         print(cmd, 'is not a valid command')
         continue
 
-calculate_state(pkg_constraints, pkg_repository)
-# f = open("commands.json", "w")
-# f.write(json.dumps(commands))
+commands = calculate_state(pkg_constraints, pkg_repository)
+f = open("commands.json", "w")
+f.write(json.dumps(commands))
 
 
