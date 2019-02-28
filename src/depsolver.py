@@ -1,8 +1,7 @@
 import json
 import sys
 import re
-from satispy import Variable, Cnf
-from satispy.solver import Minisat
+import itertools
 
 def parse_package(desc):
     ver_ops_regex = re.compile("([<>=]+)")
@@ -65,124 +64,41 @@ def get_repo_matches(pkg, repo):
     return repo_matches
 
 
-def install_map(pkg, repo):
-    package = []
-    repo_matches = get_repo_matches(pkg, repo) 
-    for match in repo_matches:
-        deps = []
-        conflicts = []
-        if match.get("depends") is not None:
-            for dep in match["depends"]:
-                x = []
+def get_package_string(name, version):
+    return name + "=" + version
+
+
+def flatten(package, repo):
+    matches = get_repo_matches(package, repo)
+    match_list = []
+    for match in matches:
+        p_str = get_package_string(match["name"], match["version"])
+        deps = match.get("depends")
+        conjs = []
+        if deps:
+            dep_list = []
+            dep_list.append([p_str])
+            for dep in deps:
+                dep_opts = []
                 for dep_opt in dep:
-                    x += install_map(parse_package(dep_opt), repo)
-                deps.append(x)
-
-        if match.get("conflicts") is not None:
-            for conf in match["conflicts"]:
-                conflicts.append(conf)
-        package.append((match["name"], match["version"], deps, conflicts))
-    return package
-
-
-def generate_clause(package):
-    n, v, d, c = package
-    v1 = Variable(n + '=' + v)
-    exp = v1
-    cjs = None
-    for conj in d:
-        djs = None
-        for disj in conj:
-	   if djs is None:
-               djs = generate_clause(disj)
-           else:
-               djs = djs | (generate_clause(disj))
-        if cjs is None:
-            cjs = djs
+                    dms = get_repo_matches(parse_package(dep_opt), repo)
+                    for dm in dms:
+                        dep_opts.append(get_package_string(dm["name"], dm["version"]))
+                dep_list.append(dep_opts)
+            conjs = list(itertools.product(*dep_list))
         else:
-            cjs = cjs & (djs)
-
-    if cjs is None:
-	return exp
-
-    exp = exp & (cjs)
-
-    for conf in c:
-        for m in get_repo_matches(parse_package(conf)):
-            exp = exp & Variable("-"+m["name"]+"="+match["version"])
-
-    return exp
+            conjs.append([p_str])
+        match_list.append(conjs)
+    return match_list
 
 
-def get_package_ref(pkg):
-    n, v = pkg
-    return "+"+n+"="+v
-
-
-def init_to_current(init):
-    output = []
-    for i in init:
-        p_i = parse_package(i)
-        output.append((p_i[0], p_i[1]))
-    return output
-
-
-def state_to_commands(state):
-    output = []
-    for st in state:
-        if st:
-            if type(st) is tuple:
-                output.append(get_package_ref(st))
-            else:
-                output += state_to_commands(st)
-    return output
-
-
-def calculate_state(constr, repo):
-    packages = []
-    uninstall_packages = []
-    for package in constr:
-        parsed_package = parse_constraint(package)
-        if parsed_package[0] == '+':
-            packages.append(install_map(parsed_package[1:], repo))
-        else:
-            uninstall_packages.append(parse_package(package))
-
-    solver = Minisat()
-    
-    exp = None
-    for pkg in packages:
-        opts = None
-        for pkg_opt in pkg:
-            if opts is None:
-                opts = generate_clause(pkg_opt)
-            else:
-                opts = opts | (generate_clause(pkg_opt))
-        if exp is None:
-            exp = opts
-        else:
-            exp = exp & (opts)
-
-    output = []
-
-    for u in uninstall_packages:
-        for match in get_repo_matches(u):
-            cmd = "-"+match["name"]+"="+match["version"]
-            exp = exp & cmd
-            output.append(cmd)
-
-    solution = solver.solve(exp)
-   
-    if not solution.success:
-       print("Could not find solution")    
-       return []
-
-    for var in solution.varmap:
-        if solution[var]:
-            name = str(var)
-            output.append("+"+name)
-
-    return output
+def calculate_cost(option, repo):
+    cost = 0
+    for pkg in option:
+        p = parse_package(pkg)
+        matches = get_repo_matches(p, repo)
+        cost += matches[0].get("size")
+    return cost
 
 
 if len(sys.argv) < 4:
@@ -206,9 +122,27 @@ for constraint in pkg_constraints:
     if cmd is None:
         print(cmd, 'is not a valid command')
         continue
+options = []
+for package in pkg_constraints:
+    parsed = parse_constraint(package)
+    if parsed[0] == '+':
+        options.append(flatten(parsed[1:], pkg_repository))
+    
+commands = []
+for package in options:
+    packages = None
+    new_cost = -1
+    for option in package:
+        items = option[0]
+        cost = calculate_cost(items, pkg_repository)
+        if packages == None:
+            new_cost = cost
+            packages = items
+        else:
+            if cost < new_cost:
+                new_cost = cost
+                packages = items
+    commands += list(packages)
 
-commands = calculate_state(pkg_constraints, pkg_repository)
-#f = open("commands.json", "w")
-#f.write(json.dumps(commands))
 print (json.dumps(commands))
 
