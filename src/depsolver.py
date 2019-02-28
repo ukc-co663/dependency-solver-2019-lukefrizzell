@@ -144,5 +144,8 @@ for package in options:
                 packages = items
     commands += list(packages)
 
+for i in range(len(commands)):
+    commands[i] = "+"+commands[i]
+
 print (json.dumps(commands))
 
