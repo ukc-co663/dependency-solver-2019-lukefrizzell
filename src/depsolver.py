@@ -105,7 +105,7 @@ def calculate_cost(option):
     return cost
 
 
-def has_conflict(option):
+def has_conflict(option, current):
     option = option[0]
     for pkg in option:
         p = parse_package(pkg)
@@ -114,7 +114,7 @@ def has_conflict(option):
         if conf:
             for c in conf:
                 p_c = parse_package(c)
-                for opt in option:
+                for opt in list(option) + current:
                     if opt is pkg:
                         continue
                     p_o = parse_package(opt)
@@ -155,7 +155,7 @@ commands = []
 for package in options:
     package.sort(key=calculate_cost)	
     i = 0
-    while has_conflict(package[i]):
+    while has_conflict(package[i], pkg_initial):
         i += 1    
         if i >= len(package):
 	    print("Uh Oh")
