@@ -107,7 +107,7 @@ def calculate_cost(option):
     return cost
 
 
-def has_conflict(option, current):
+def has_conflict(option, current, avoids):
     for pkg in option:
         p = parse_package(pkg)
         matches = get_repo_matches(p)
@@ -122,6 +122,9 @@ def has_conflict(option, current):
                     if p_o[0] == p_c[0]:
                         if compare_version(p_o[1], p_c[2], p_c[1]):
                             return True
+        for a in avoids:
+	    if p[0] == a[0]:
+                return True
     return False
 
 
@@ -147,17 +150,20 @@ for constraint in pkg_constraints:
         print(cmd, 'is not a valid command')
         continue
 options = []
+avoids  = []
 for package in pkg_constraints:
     parsed = parse_constraint(package)
     if parsed[0] == '+':
         options.append(flatten(parsed[1:]))
+    else:
+        avoids.append(parsed[1:])
  
 current = pkg_initial
 commands = []
 for package in options:
     package.sort(key=calculate_cost)	
     i = 0
-    while has_conflict(package[i], current):
+    while has_conflict(package[i], current, avoids):
         i += 1    
         if i >= len(package):
 	    print("Uh Oh")
@@ -167,6 +173,8 @@ for package in options:
 
 for i in range(len(commands)):
     commands[i] = "+" + commands[i]
+for a in avoids:
+    commands.append("-"+ get_package_string(a[0], a[1]))
 
 print (json.dumps(commands))
 
