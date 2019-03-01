@@ -3,6 +3,10 @@ import sys
 import re
 import itertools
 
+
+repo = []
+
+
 def parse_package(desc):
     ver_ops_regex = re.compile("([<>=]+)")
 
@@ -59,7 +63,7 @@ def compare_version(a, op, b):
     return True
 
 
-def get_repo_matches(pkg, repo):
+def get_repo_matches(pkg):
     repo_matches = [x for x in repo if x["name"] == pkg[0] and compare_version(x["version"], pkg[2], pkg[1])]
     return repo_matches
 
@@ -68,8 +72,8 @@ def get_package_string(name, version):
     return name + "=" + version
 
 
-def flatten(package, repo):
-    matches = get_repo_matches(package, repo)
+def flatten(package):
+    matches = get_repo_matches(package)
     match_list = []
     for match in matches:
         p_str = get_package_string(match["name"], match["version"])
@@ -81,7 +85,7 @@ def flatten(package, repo):
             for dep in deps:
                 dep_opts = []
                 for dep_opt in dep:
-                    dms = get_repo_matches(parse_package(dep_opt), repo)
+                    dms = get_repo_matches(parse_package(dep_opt))
                     for dm in dms:
                         dep_opts.append(get_package_string(dm["name"], dm["version"]))
                 dep_list.append(dep_opts)
@@ -92,13 +96,32 @@ def flatten(package, repo):
     return match_list
 
 
-def calculate_cost(option, repo):
+def calculate_cost(option):
     cost = 0
-    for pkg in option:
+    for pkg in option[0]:
         p = parse_package(pkg)
-        matches = get_repo_matches(p, repo)
+        matches = get_repo_matches(p)
         cost += matches[0].get("size")
     return cost
+
+
+def has_conflict(option):
+    option = option[0]
+    for pkg in option:
+        p = parse_package(pkg)
+        matches = get_repo_matches(p)
+        conf = matches[0].get("conflicts")
+        if conf:
+            for c in conf:
+                p_c = parse_package(c)
+                for opt in option:
+                    if opt is pkg:
+                        continue
+                    p_o = parse_package(opt)
+                    if p_o[0] == p_c[0]:
+                        if compare_version(p_o[1], p_c[2], p_c[1]):
+                            return True
+    return False
 
 
 if len(sys.argv) < 4:
@@ -107,7 +130,7 @@ if len(sys.argv) < 4:
 
 f = open(sys.argv[1], "r")
 repository_json = f.read()
-pkg_repository = json.loads(repository_json)
+repo = json.loads(repository_json)
 
 f = open(sys.argv[2], "r")
 initial_json = f.read()
@@ -126,26 +149,22 @@ options = []
 for package in pkg_constraints:
     parsed = parse_constraint(package)
     if parsed[0] == '+':
-        options.append(flatten(parsed[1:], pkg_repository))
+        options.append(flatten(parsed[1:]))
     
 commands = []
 for package in options:
-    packages = None
-    new_cost = -1
-    for option in package:
-        items = option[0]
-        cost = calculate_cost(items, pkg_repository)
-        if packages == None:
-            new_cost = cost
-            packages = items
-        else:
-            if cost < new_cost:
-                new_cost = cost
-                packages = items
-    commands += list(packages)
+    package.sort(key=calculate_cost)	
+    i = 0
+    while has_conflict(package[i]):
+        i += 1    
+        if i >= len(package):
+	    print("Uh Oh")
+
+    commands += package[i][0]
+    
 
 for i in range(len(commands)):
-    commands[i] = "+"+commands[i]
+    commands[i] = "+" + commands[i]
 
 print (json.dumps(commands))
 
