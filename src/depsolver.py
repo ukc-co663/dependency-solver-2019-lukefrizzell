@@ -78,27 +78,29 @@ def flatten(package):
     for match in matches:
         p_str = get_package_string(match["name"], match["version"])
         deps = match.get("depends")
-        conjs = []
         if deps:
             dep_list = []
-            dep_list.append([p_str])
+            conjs = []
             for dep in deps:
                 dep_opts = []
                 for dep_opt in dep:
-                    dms = get_repo_matches(parse_package(dep_opt))
-                    for dm in dms:
-                        dep_opts.append(get_package_string(dm["name"], dm["version"]))
-                dep_list.append(dep_opts)
-            conjs = list(itertools.product(*dep_list))
+                    p_d = parse_package(dep_opt)
+                    flat = flatten(p_d)
+                    for item in flat:
+			dep_opts += item
+		dep_list.append(dep_opts)  
+            conjs += list(itertools.product(*dep_list)) 
+	    for item in conjs:
+	        match_list.append(list(item) + [p_str])
         else:
-            conjs.append([p_str])
-        match_list.append(conjs)
+            match_list.append([p_str])
+    
     return match_list
 
 
 def calculate_cost(option):
     cost = 0
-    for pkg in option[0]:
+    for pkg in option: 
         p = parse_package(pkg)
         matches = get_repo_matches(p)
         cost += matches[0].get("size")
@@ -106,7 +108,6 @@ def calculate_cost(option):
 
 
 def has_conflict(option, current):
-    option = option[0]
     for pkg in option:
         p = parse_package(pkg)
         matches = get_repo_matches(p)
@@ -150,17 +151,18 @@ for package in pkg_constraints:
     parsed = parse_constraint(package)
     if parsed[0] == '+':
         options.append(flatten(parsed[1:]))
-    
+ 
+current = pkg_initial
 commands = []
 for package in options:
     package.sort(key=calculate_cost)	
     i = 0
-    while has_conflict(package[i], pkg_initial):
+    while has_conflict(package[i], current):
         i += 1    
         if i >= len(package):
 	    print("Uh Oh")
-
-    commands += package[i][0]
+    current += package[i]
+    commands += package[i]
     
 
 for i in range(len(commands)):
