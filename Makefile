@@ -1,6 +1,6 @@
 all: deps
 
-deps:
+deps:   
 	./install_deps.sh
 
 test: deps
