@@ -90,11 +90,15 @@ def remove_duplicates(item):
     return output
 
 
-def solve(package):
+def solve(package, roots):
     matches = get_repo_matches(package)
     match_list = []
     for match in matches:
         p_str = get_package_string(match["name"], match["version"])
+        
+        if p_str in roots:
+            continue
+
         deps = match.get("depends")
         if deps:
             dep_list = []
@@ -103,7 +107,7 @@ def solve(package):
                 dep_opts = []
                 for dep_opt in dep:
                     p_d = parse_package(dep_opt)
-                    s = solve(p_d)
+                    s = solve(p_d, roots + [p_str])
                     for item in s:
 			dep_opts.append(item)
 		dep_list.append(dep_opts)
@@ -170,12 +174,14 @@ options = []
 for package in pkg_constraints:
     parsed = parse_constraint(package)
     if parsed[0] == '+':
-        options.append(solve(parsed[1:]))
+        solution = solve(parsed[1:], [])
+        options.append(solution)
     else:
         avoids.append(parsed[1:])
  
 current = pkg_initial
 commands = []
+
 for package in options:
     package = map(flatten, package)
     package.sort(key=calculate_cost)	
