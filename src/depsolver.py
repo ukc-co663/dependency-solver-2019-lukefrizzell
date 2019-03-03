@@ -5,7 +5,7 @@ import itertools
 
 
 repo = []
-
+avoids = []
 
 def parse_package(desc):
     ver_ops_regex = re.compile("([<>=]+)")
@@ -72,7 +72,17 @@ def get_package_string(name, version):
     return name + "=" + version
 
 
-def flatten(package):
+def flatten(item):
+    output = []
+    if type(item) is list:
+        for i in item:
+            output += flatten(i)
+    else: 
+        output = [item]
+    return output
+
+
+def solve(package):
     matches = get_repo_matches(package)
     match_list = []
     for match in matches:
@@ -85,16 +95,15 @@ def flatten(package):
                 dep_opts = []
                 for dep_opt in dep:
                     p_d = parse_package(dep_opt)
-                    flat = flatten(p_d)
-                    for item in flat:
-			dep_opts += item
-		dep_list.append(dep_opts)  
-            conjs += list(itertools.product(*dep_list)) 
+                    s = solve(p_d)
+                    for item in s:
+			dep_opts.append(item)
+		dep_list.append(dep_opts)
+            conjs += list(itertools.product(*dep_list))             
 	    for item in conjs:
 	        match_list.append(list(item) + [p_str])
         else:
             match_list.append([p_str])
-    
     return match_list
 
 
@@ -150,17 +159,17 @@ for constraint in pkg_constraints:
         print(cmd, 'is not a valid command')
         continue
 options = []
-avoids  = []
 for package in pkg_constraints:
     parsed = parse_constraint(package)
     if parsed[0] == '+':
-        options.append(flatten(parsed[1:]))
+        options.append(solve(parsed[1:]))
     else:
         avoids.append(parsed[1:])
  
 current = pkg_initial
 commands = []
 for package in options:
+    package = map(flatten, package)
     package.sort(key=calculate_cost)	
     i = 0
     while has_conflict(package[i], current, avoids):
