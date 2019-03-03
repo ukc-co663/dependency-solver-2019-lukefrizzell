@@ -82,6 +82,14 @@ def flatten(item):
     return output
 
 
+def remove_duplicates(item):
+    output = []
+    for i in item:
+       if i not in output: 
+           output.append(i)
+    return output
+
+
 def solve(package):
     matches = get_repo_matches(package)
     match_list = []
@@ -178,10 +186,12 @@ for package in options:
 	    print("Uh Oh")
     current += package[i]
     commands += package[i]
-    
 
 for i in range(len(commands)):
     commands[i] = "+" + commands[i]
+
+commands = remove_duplicates(commands)
+
 for a in avoids:
     commands.append("-"+ get_package_string(a[0], a[1]))
 
