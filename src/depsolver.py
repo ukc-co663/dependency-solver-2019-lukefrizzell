@@ -152,7 +152,8 @@ def has_conflict(option, current, avoids):
                             return True
         for a in avoids:
 	    if p[0] == a[0]:
-                return True
+                if compare_version(p[1], a[2], a[1]):
+                    return True
     return False
 
 
