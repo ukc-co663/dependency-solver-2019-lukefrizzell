@@ -66,8 +66,9 @@ def compare_version(a, op, b):
             return False
         else:
             return True
-        
-    return True
+    if '=' in op:
+        return True    
+    return False
 
 
 def get_repo_matches(pkg):
@@ -104,7 +105,7 @@ def solve(package, roots):
         p_str = get_package_string(match["name"], match["version"])
         
         if p_str in roots:
-            continue
+           continue
 
         deps = match.get("depends")
         if deps:
@@ -135,7 +136,7 @@ def calculate_cost(option):
     return cost
 
 
-def has_conflict(option, current, avoids):
+def has_conflict(option, init, avoids):
     for pkg in option:
         p = parse_package(pkg)
         matches = get_repo_matches(p)
@@ -143,12 +144,13 @@ def has_conflict(option, current, avoids):
         if conf:
             for c in conf:
                 p_c = parse_package(c)
-                for opt in list(option) + current:
+                for opt in list(option) + init:
                     if opt is pkg:
                         continue
                     p_o = parse_package(opt)
                     if p_o[0] == p_c[0]:
                         if compare_version(p_o[1], p_c[2], p_c[1]):
+                            #print(get_package_string(p_o[0], p_o[1]), p_c[2], get_package_string(p_c[0], p_c[1]))
                             return True
         for a in avoids:
 	    if p[0] == a[0]:
@@ -157,16 +159,16 @@ def has_conflict(option, current, avoids):
     return False
 
 
-def remove_conflicts(package, current, init):
+def remove_conflicts(package, init):
     i = 0
     while i < len(package):
-        if has_conflict(package[i], current, avoids):
+        if has_conflict(package[i], init, avoids):
             i += 1
         else:
             return package[i]
     for u in init:
         i = 0
-        tmp = current
+        tmp = init
         tmp.remove(u)
         while i < len(package):
             if has_conflict(package[i], tmp, avoids + [parse_package(u)]):
@@ -197,27 +199,32 @@ for constraint in pkg_constraints:
     if cmd is None:
         print(cmd, 'is not a valid command')
         continue
-options = []
+install = []
 for package in pkg_constraints:
     parsed = parse_constraint(package)
     if parsed[0] == '+':
-        solution = solve(parsed[1:], [])
-        options.append(solution)
+        install.append(parsed[1:])
     else:
         avoids.append(parsed[1:])
 
-current = pkg_initial
+i_list = []
+options = []
+for i in install:
+    opts = []
+    s = solve(i, [])
+    for item in s:
+        opts.append(item)
+    i_list.append(opts)
+options += list(map(list, itertools.product(*i_list)))
+
 commands = []
 
-for package in options:
-    package = map(flatten, package)
-    package.sort(key=calculate_cost)	
-    i = 0
-   
-    result = remove_conflicts(package, current, pkg_initial)    
+package = map(flatten, options)    
+
+package.sort(key=calculate_cost)	
+result = remove_conflicts(package, pkg_initial)    
   
-    current += result
-    commands += result
+commands += result
 
 for i in range(len(commands)):
     commands[i] = "+" + commands[i]
