@@ -57,9 +57,16 @@ def compare_version(a, op, b):
     while lb < la:
         vb.append(0)
 
-    for i in range(len(va)):
+    i = 0
+    while i < len(va):
+        if va[i] == vb[i]:
+            i += 1
+            continue
         if not compare_sub_version(va[i], op, vb[i]):
             return False
+        else:
+            return True
+        
     return True
 
 
@@ -149,6 +156,25 @@ def has_conflict(option, current, avoids):
     return False
 
 
+def remove_conflicts(package, current, init):
+    i = 0
+    while i < len(package):
+        if has_conflict(package[i], current, avoids):
+            i += 1
+        else:
+            return package[i]
+    for u in init:
+        i = 0
+        tmp = current
+        tmp.remove(u)
+        while i < len(package):
+            if has_conflict(package[i], tmp, avoids + [parse_package(u)]):
+                i += 1
+            else: 
+                avoids.append(parse_package(u))
+                return package[i]
+
+
 if len(sys.argv) < 4:
     print("Argument count mismatch: required 3, actual", len(sys.argv) - 1)
     exit()
@@ -178,7 +204,7 @@ for package in pkg_constraints:
         options.append(solution)
     else:
         avoids.append(parsed[1:])
- 
+
 current = pkg_initial
 commands = []
 
@@ -186,12 +212,11 @@ for package in options:
     package = map(flatten, package)
     package.sort(key=calculate_cost)	
     i = 0
-    while has_conflict(package[i], current, avoids):
-        i += 1    
-        if i >= len(package):
-	    print("Uh Oh")
-    current += package[i]
-    commands += package[i]
+   
+    result = remove_conflicts(package, current, pkg_initial)    
+  
+    current += result
+    commands += result
 
 for i in range(len(commands)):
     commands[i] = "+" + commands[i]
