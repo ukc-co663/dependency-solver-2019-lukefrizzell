@@ -224,7 +224,7 @@ for i in range(len(commands)):
 commands = remove_duplicates(commands)
 
 for a in avoids:
-    commands.append("-"+ get_package_string(a[0], a[1]))
+    commands = ["-"+ get_package_string(a[0], a[1])] + commands
 
 print (json.dumps(commands))
 
